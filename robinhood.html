@@ -3,31 +3,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 <style>
-body,html{
+body *{
 	font-family: Helvetica, Arial, sans-serif;
-
- margin: 0; padding: 0;
+	margin: 0; 
+	padding: 0;
 }
-body{margin: 2% auto; width: 50%; min-width: 600px;}
+body{
+	margin: 2% auto; 
+	width: 50%; 
+	min-width: 400px;
+}
 input[type='submit'] {
 	color: #fff;
 	height: 36px;
-  background-color: #337ab7;
-  padding: 6px 12px;
-  font-size: 14px;
-  font-weight: 400;
-  border: 1px solid transparent;
-  border-radius: 4px;
+	background-color: #337ab7;
+	padding: 6px 12px;
+	font-size: 14px;
+	font-weight: 400;
+	border: 1px solid transparent;
+	border-radius: 4px;
 	cursor: pointer;
 }
 
 input[type='text'], input[type='password'] {
-  height: 24px;
-  padding: 6px 12px;
-  color: #555;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+	height: 24px;
+	padding: 6px 12px;
+	color: #555;
+	background-color: #fff;
+	border: 1px solid #ccc;
+	border-radius: 4px;
 
 }
 
@@ -50,9 +54,9 @@ input[type='text'], input[type='password'] {
 	padding: 10px;
 }
 .stock a{
-  font-size: 24px;
-  padding: 2px;
-  margin: 0px 2px;
+	font-size: 24px;
+	padding: 2px;
+	margin: 0px 2px;
 	text-decoration: none;
 	color: darkblue;
 	font-size: 24px;
@@ -115,7 +119,7 @@ $(document).ready(function(){
 									+'" target="_blank" href="https://www.google.com/finance?q='+res.symbol+'"><span class="symbol">' + res.symbol +
 									'</span> <span class="price" >'+ res.last_trade_price.replace(/00$/,'') + '</span></a> <div class="quantity-shares">' + this.q + "</div>&nbsp; -"
 									+ (this.r.shares_held_for_sells + " +" + this.r.shares_held_for_buys).replace(/\.0000/g,'')
-									+ ( this.q = 0 ? '&nbsp;<input type="text" class="quantity" placeholder="#" maxlength="3" value="1"><input type="submit" class="button-sell" value="Sell" >':'')+"</div>")
+									+ ( this.q > 0 ? '&nbsp;<input type="text" class="quantity" placeholder="#" maxlength="3" value="1"><input type="submit" class="button-sell" value="Sell" >':'')+"</div>");
 
 									stockHtml.find(".button-sell").click(processOrder)
 
