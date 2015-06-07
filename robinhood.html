@@ -1,14 +1,10 @@
-<!DOCTYPE html><html><head>
-<title>Robinhood.com Web and Android API</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="jquery.min.js"></script>
-<style>
 body *{
   font-family: Helvetica, Arial, sans-serif;
   margin: 0; 
   padding: 0;
 }
-body{
+<!DOCTYPE html><html>
+<style>body{
   margin: 2% auto; 
   width: 50%; 
   min-width: 400px;
@@ -37,7 +33,7 @@ input:not([type='submit']){
   display: flex;
   align-items: center;
 }
-#user{
+#account{
   padding: 10px;
   background-color: #f5f5f5;
   border-radius: 4px;
@@ -64,7 +60,6 @@ input:not([type='submit']){
 .symbol{
   color: black;
 }
-
 .green{
   background-color: green;
 }
@@ -72,123 +67,96 @@ input:not([type='submit']){
   background-color: red;
 }
 </style>
+<body></body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 <script>
-$(document).ready(function(){
+var a = "https://api.robinhood.com/";
+var c=document.cookie, cRobin= c.indexOf("robinhood=")
 
-  var a = "https://api.robinhood.com/";
-  document.cookie.split("; ").map(function(c){
-    if(!c.indexOf("robinhood=")) 
-      userLogin({token:c.substring(c.indexOf("=")+1)});
+$('body').attr("style", "margin: 3% auto; max-width: 800px;");
+
+if (cRobin>-1)
+  initPortfolio({token: c.substring(cRobin+10, (c+";").indexOf(";",cRobin)) });
+else
+  $('body').html('<div id="account"><form><input type="text" name="username" id="username" placeholder="Username"><input type="password" '
+    +'name="password" id="password" placeholder="Password"><input type="submit" id="button-login" value="Login"></form></div>')
+    .find("#button-login").click(function(e){
+      e.preventDefault();
+      $.ajax({url: a+"api-token-auth/", data: {username: $("#username").val(), password: $("#password").val()},
+        type: 'POST', crossDomain: true, dataType: 'json'})
+      .done(initPortfolio)
+      .error(function(){
+        alert("Login failed");
+      })
   });
 
-  $("#button-login").click(function(e){
-    e.preventDefault();
-    $.ajax({url: a+"api-token-auth/", data: {username: $("#username").val(), password: $("#password").val()},
-      type: 'POST', crossDomain: true, dataType: 'json'}).done(userLogin)
-    .error(function(){
-      alert("Login failed");
-    })
-  })
+function initPortfolio(res) {
+  document.cookie='robinhood='+res.token+'; expires=Mon, 1 Jan 2020 20:20:20 UTC; path=/';
+  $.ajaxSetup({beforeSend: function(xhr) {
+    xhr.setRequestHeader('Authorization', 'Token ' + res.token);
+  }});
 
-  function userLogin(res) {
-    document.cookie='robinhood='+res.token+'; expires=Fri, 20 Aug 2020 20:20:20 UTC; path=/';
-    $.ajaxSetup({beforeSend: function(xhr) {
-      xhr.setRequestHeader('Authorization', 'Token ' + res.token);
-    }});
+  $.ajax(a+"accounts/").done(function(account) {
+    var account = account.results[0], bank = account.cash_balances;
+    window.account = account.url;
 
-    $.ajax(a+"accounts/").done(function(res) {
-      window.account = res.results[0].url;
+    $.ajax(account.portfolio).done(function(bankSum) {
 
-      $.ajax(res.results[0].portfolio).done(function(res) {
+      $('body').html('<div id="account">'+ ("$"+bank.cash+" - $"+bank.cash_held_for_orders+" pending orders + $"+ bank.uncleared_deposits
+        +" pending deposits + $"+bankSum.market_value+" market value = $"+bankSum.equity+" equity").replace(/(\d\d)00/g,'$1')+ '</div><div id="portfolio"></div>'+
+        '<form class="search"><input type="text" id="symbol-search" placeholder="Symbol" maxlength="5"><input type="submit" id="button-search" value="Search"></form>'+
+        '<div id="stocklist"></div>')
+        .find('#button-search').click(function(e){
+          e.preventDefault();
+          $.ajax(a+"quotes/"+ $("#symbol-search").val().toUpperCase()+"/").done(function(res) {
 
-        $("#account").html(
-          ("$"+this.bank.cash+" - $"+this.bank.cash_held_for_orders+" pending orders + $"+this.bank.uncleared_deposits
-          +" pending deposits + $"+res.market_value+" market value = $"+res.equity+" equity").replace(/(\d\d)00/g,'$1')
-        );
+            var stockHtml = $('<div class="stock"><a class="'+ (parseFloat(res.last_trade_price)>=parseFloat(res.previous_close) ? "green":"red")
+            +'" target="_blank" href="https://www.google.com/finance?q='+res.symbol+'"><div class="symbol">' + res.symbol +
+            '</div>&nbsp;$<div class="price">'+ res.last_trade_price.slice(0,-2) + '</div></a> ' + (window.account ? 
+            '<input type="text" class="quantity" width="20px" maxlength="3" value="1"><input type="submit" class="button-buy" value="Buy">' : '') +'</div>');
 
-      }.bind({bank:res.results[0].cash_balances}));
+            stockHtml.find(".button-buy").click(processOrder);
 
-      //portfolio
-      $.ajax(res.results[0].positions).done(function(res) {
-        for (var i in res.results)
-          $.ajax(res.results[i].instrument).done(function(res) {
-            $.ajax(a+"quotes/"+res.symbol+"/").done(function(res) {
-              var stockHtml = $('<div class="stock"><a class="'+ (parseFloat(res.last_trade_price) >= parseFloat(res.previous_close) ? 
-              "green":"red") +'" target="_blank" href="https://www.google.com/finance?q='+res.symbol+'"><div class="symbol">' + 
-              res.symbol + '</div>&nbsp;$<div class="price">'+res.last_trade_price.slice(0,-2)+'</div></a> <div class="quantity-shares">'+
-              this.q + "</div>&nbsp;" + ((parseInt(this.r.shares_held_for_sells)?" -"+this.r.shares_held_for_sells:"") + 
-              (parseInt(this.r.shares_held_for_buys)?" +" + this.r.shares_held_for_buys:"")).replace(/\.0000/g,'') + ( this.q > 0 ? 
-              '&nbsp;<input type="text" class="quantity" maxlength="3" value="1"><input type="submit" class="button-sell" value="Sell">'
-              :'')+"</div>");
-
-              stockHtml.find(".button-sell").click(processOrder);
-              $("#portfolio").append( stockHtml);
-
-            }.bind({r: this.r, q: parseInt(this.r.quantity)}))
-          }.bind({r: res.results[i]}));
-      })
+            $("#stocklist").prepend(stockHtml);
+          })
+        })
     });
-  }
 
-  //search
-  $("#button-search").click(function(e){
-    e.preventDefault();
-    $.ajax(a+"quotes/"+ $("#symbol-search").val().toUpperCase()+"/").done(function(res) {
+    $.ajax(account.positions).done(function(qtList) {
+      var qtList=qtList.results;
+      $.when.apply($, qtList.map(function(r){ return $.ajax(r.instrument); }) ).done(function(){
+        $.when.apply($, $.map(arguments, function(r,i){ return $.ajax(a+"quotes/"+r[0].symbol+"/"); } )  ).done(function(){
+          
+          for(var i in arguments){
+            var r = arguments[i][0];
+            $("#portfolio").append( '<div class="stock"><div class="quantity-shares">'+ parseInt(qtList[i].quantity)+ '</div>&nbsp;'+ 
+              (parseInt(qtList[i].shares_held_for_sells)?"-"+ parseInt(qtList[i].shares_held_for_sells):"") + (parseInt(qtList[i].shares_held_for_buys)?" +" + parseInt(qtList[i].shares_held_for_buys):"") +'<a class="'+ (parseFloat(r.last_trade_price) 
+                >= parseFloat(r.previous_close) ? "green":"red") +'" target="_blank" href="https://www.google.com/finance?q='+r.symbol+
+              '"><div class="symbol">' + r.symbol + '</div>&nbsp;$<div class="price">'+r.last_trade_price.slice(0,-2)+'</div></a>' + 
+              (parseInt(qtList[i].quantity)>0 ? '&nbsp;<input type="text"  width="20px" class="quantity" maxlength="3" value="1"><input type="submit" class="button-sell" value="Sell">':'')+"</div>" );
+          };
 
-      var stockHtml = $('<div class="stock"><a class="'+ (parseFloat(res.last_trade_price)>=parseFloat(res.previous_close) ? "green":"red")
-      +'" target="_blank" href="https://www.google.com/finance?q='+res.symbol+'"><div class="symbol">' + res.symbol +
-      '</div>&nbsp;$<div class="price">'+ res.last_trade_price.slice(0,-2) + '</div></a> ' + (window.account ? 
-      '<input type="text" class="quantity" maxlength="3" value="1"><input type="submit" class="button-buy" value="Buy">' : '') +'</div>');
-
-      stockHtml.find(".button-buy").click(processOrder);
-
-      $("#stocklist").prepend(stockHtml);
+          $(".button-sell").click(processOrder);
+        });
+      });
     })
-  })
+  });
+}
 
-  var processOrder = function(){
-    $.ajax(a+"instruments/?query="+$(this).closest('.stock').find(".symbol").text()).done(function(res) {
-
-        $.ajax({method:"POST", url:a+"orders/", data:{
-          time_in_force: 'gfd', trigger: 'immediate', type: 'market', account: window.account,
-          instrument: res.results[0].url, side: this.side, symbol: this.div.find(".symbol").text(),
-          price: this.div.find(".price").text(), quantity: this.div.find(".quantity").val()
-        }})
-        .done(function(res){
-          alert("Order success, check email for confirmation.");
-
-        })
-        .error(function(res){
-          var j = res.responseJSON;
-          alert((j && (j.detail || j.quantity) ? j.detail || j.quantity : res.responseText));
-        })
-
-    }.bind({div:$(this).closest('.stock'), side: ( this.className=="button-buy" ? 'buy' : 'sell') }))
-
-  };
-
-})
+function processOrder(){
+  $.ajax(a+"instruments/?query="+$(this).closest('.stock').find(".symbol").text()).done(function(res) {
+    $.ajax({method:"POST", url:a+"orders/", data:{
+      time_in_force: 'gfd', trigger: 'immediate', type: 'market', account: window.account, instrument: res.results[0].url, side: this.side, 
+      symbol: this.div.find(".symbol").text(), price: this.div.find(".price").text(), quantity: this.div.find(".quantity").val()
+    }})
+    .done(function(res){
+      alert("Order success, check email for confirmation.");
+    })
+    .error(function(res){
+      var j = res.responseJSON;
+      alert((j && (j.detail || j.quantity) ? j.detail || j.quantity : res.responseText));
+    })
+  }.bind({div:$(this).closest('.stock'), side: ( this.className=="button-buy" ? 'buy' : 'sell') }))
+};
 </script>
-</head>
-<body>
-
-  <div id="user">
-    <div id="account">
-      <form>
-        <input type="text" name="username" id="username" placeholder="Username">
-        <input type="password" name="password" id="password" placeholder="Password">
-        <input type="submit" id="button-login" value="Login">
-      </form>
-    </div>
-    <div id="portfolio"></div>
-  </div>
-
-  <form class="search">
-    <input type="text" id="symbol-search" placeholder="Symbol" maxlength="5">
-    <input type="submit" id="button-search" value="Search">
-  </form>
-
-  <div id="stocklist"></div>
-
-</body>
 </html>
